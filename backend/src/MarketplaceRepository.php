@@ -227,7 +227,7 @@ final class MarketplaceRepository
             $where[] = $searchCondition . ')';
         }
 
-        foreach (['platform' => 'pf.slug', 'region' => 'r.slug'] as $filter => $column) {
+        foreach (['category' => 'c.slug', 'platform' => 'pf.slug', 'region' => 'r.slug'] as $filter => $column) {
             $value = $this->stringFilter($filters, $filter);
             if ($value !== '') {
                 $where[] = $column . ' = :' . $filter;

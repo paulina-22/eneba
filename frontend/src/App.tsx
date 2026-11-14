@@ -151,6 +151,8 @@ const lithuanianTranslations: Record<string, string> = {
   'Hide filters': 'Slėpti filtrus',
   'Clear filters': 'Išvalyti filtrus',
   'Refine the available offers.': 'Patikslinkite pasiūlymus.',
+  Category: 'Kategorija',
+  'All categories': 'Visos kategorijos',
   Platform: 'Platforma',
   'All platforms': 'Visos platformos',
   Region: 'Regionas',
@@ -522,6 +524,7 @@ function useAuth(): AuthContextValue {
 }
 
 type StoreFilters = {
+  category: string;
   platform: string;
   region: string;
   minPrice: string;
@@ -536,6 +539,7 @@ type ProductRequestFilters = Partial<StoreFilters> & {
 const PRODUCTS_PER_PAGE = 12;
 
 const initialStoreFilters: StoreFilters = {
+  category: '',
   platform: '',
   region: '',
   minPrice: '',
@@ -554,7 +558,7 @@ function productsRequestPath(
     offset: String(offset),
   });
 
-  for (const key of ['query', 'platform', 'region', 'minPrice', 'maxPrice'] as const) {
+  for (const key of ['query', 'category', 'platform', 'region', 'minPrice', 'maxPrice'] as const) {
     const value = filters[key];
     if (value) params.set(key === 'query' ? 'q' : key, value);
   }
@@ -1365,7 +1369,11 @@ function DiscoverySection({
     <nav aria-label="Browse categories and platforms" className="discovery-rail" id="categories">
       <div className="discovery-rail__track" id="platforms">
         {categoryItems.map((category) => (
-          <Link className="discovery-rail__item" key={`category-${category.id}`} to="/store">
+          <Link
+            className="discovery-rail__item"
+            key={`category-${category.id}`}
+            to={`/store?category=${encodeURIComponent(category.slug)}`}
+          >
             <span aria-hidden="true" className="discovery-rail__icon">
               <BrowseIcon name={category.name} />
             </span>
@@ -1699,9 +1707,14 @@ function SearchPage() {
 function StorePage() {
   const { convertPriceToEur, currency, t } = usePreferences();
   const [searchParams, setSearchParams] = useSearchParams();
+  const categories = useApiResource<HomepageSection<CategorySummary>>('/home/categories');
   const initialFilters = {
     ...initialStoreFilters,
+    category: searchParams.get('category') ?? '',
     platform: searchParams.get('platform') ?? '',
+    region: searchParams.get('region') ?? '',
+    minPrice: searchParams.get('minPrice') ?? '',
+    maxPrice: searchParams.get('maxPrice') ?? '',
     sort: searchParams.get('sort') ?? 'popular',
   };
   const [draftFilters, setDraftFilters] = useState(initialFilters);
@@ -1713,6 +1726,20 @@ function StorePage() {
   const [hasMore, setHasMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const requestVersion = useRef(0);
+
+  useEffect(() => {
+    const urlFilters = {
+      ...initialStoreFilters,
+      category: searchParams.get('category') ?? '',
+      platform: searchParams.get('platform') ?? '',
+      region: searchParams.get('region') ?? '',
+      minPrice: searchParams.get('minPrice') ?? '',
+      maxPrice: searchParams.get('maxPrice') ?? '',
+      sort: searchParams.get('sort') ?? 'popular',
+    };
+    setDraftFilters(urlFilters);
+    setAppliedFilters(urlFilters);
+  }, [searchParams]);
 
   useEffect(() => {
     let active = true;
@@ -1792,6 +1819,11 @@ function StorePage() {
   function applyFilters(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setAppliedFilters({ ...draftFilters });
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(draftFilters)) {
+      if (value && (key !== 'sort' || value !== 'popular')) params.set(key, value);
+    }
+    setSearchParams(params);
     setFiltersOpen(false);
   }
 
@@ -1828,6 +1860,25 @@ function StorePage() {
                 </button>
               </div>
               <div className="filter-controls">
+                <label>
+                  {t('Category')}
+                  <select
+                    disabled={categories.loading || Boolean(categories.error)}
+                    onChange={(event) => updateFilter('category', event.target.value)}
+                    value={draftFilters.category}
+                  >
+                    <option value="">{t('All categories')}</option>
+                    {draftFilters.category && !categories.data?.items.some(
+                      (category) => category.slug === draftFilters.category,
+                    ) && (
+                      <option value={draftFilters.category}>{draftFilters.category}</option>
+                    )}
+                    {categories.data?.items.map((category) => (
+                      <option key={category.id} value={category.slug}>{t(category.name)}</option>
+                    ))}
+                  </select>
+                </label>
+                {categories.error && <p role="alert">{categories.error}</p>}
                 <label>
                   {t('Platform')}
                   <select
@@ -1907,7 +1958,14 @@ function StorePage() {
               <div className="section-heading">
                 <div>
                   <p className="eyebrow">{t('READY TO PLAY')}</p>
-                  <h2>{t('Games for you')}</h2>
+                  <h2>
+                    {t('Games for you')}
+                    {appliedFilters.category && (
+                      <> · {t(categories.data?.items.find(
+                        (category) => category.slug === appliedFilters.category,
+                      )?.name ?? appliedFilters.category)}</>
+                    )}
+                  </h2>
                 </div>
                 {!loading && (
                   <span className="result-count">
