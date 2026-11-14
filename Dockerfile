@@ -12,7 +12,9 @@ RUN npm run build
 FROM php:8.3-apache
 
 RUN docker-php-ext-install pdo_mysql \
-    && a2enmod rewrite \
+    && (a2dismod mpm_event 2>/dev/null || true) \
+    && (a2dismod mpm_worker 2>/dev/null || true) \
+    && a2enmod mpm_prefork rewrite \
     && printf '%s\n' \
         '<Directory /var/www/html>' \
         '    AllowOverride All' \
