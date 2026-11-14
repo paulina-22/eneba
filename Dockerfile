@@ -12,9 +12,10 @@ RUN npm run build
 FROM php:8.3-apache
 
 RUN docker-php-ext-install pdo_mysql \
-    && (a2dismod mpm_event 2>/dev/null || true) \
-    && (a2dismod mpm_worker 2>/dev/null || true) \
+    && find /etc/apache2/mods-enabled -maxdepth 1 -name 'mpm_*.load' ! -name 'mpm_prefork.load' -delete \
+    && find /etc/apache2/mods-enabled -maxdepth 1 -name 'mpm_*.conf' ! -name 'mpm_prefork.conf' -delete \
     && a2enmod mpm_prefork rewrite \
+    && test "$(apache2ctl -M 2>&1 | grep -c 'mpm_.*_module')" -eq 1 \
     && printf '%s\n' \
         '<Directory /var/www/html>' \
         '    AllowOverride All' \
